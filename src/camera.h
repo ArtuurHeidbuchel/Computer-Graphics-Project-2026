@@ -1,0 +1,218 @@
+#ifndef CAMERA_H
+#define CAMERA_H
+
+
+#include <glad/glad.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include "cammode.h"
+#include "config.h"
+
+using namespace std;
+
+enum Camera_Movement
+{
+    FORWARD,
+    BACKWARD,
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN
+};
+
+const float YAW = -90.0f;
+const float PITCH = 0.0f;
+const float SPEED = 75.0f;
+const float SENSITIVITY = 0.1f;
+
+class Camera
+{
+public:
+    glm::vec3 Position;
+    glm::vec3 Front;
+    glm::vec3 Up;
+    glm::vec3 Right;
+
+    glm::vec3 WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    const int screenWidth = 800;
+    const int screenHeight = 600;
+    
+    float Yaw;
+    float Pitch;
+
+    bool mouseInit = true;
+    float dirX0 = screenWidth / 2;
+    float dirY0 = screenHeight / 2;
+
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, 0.0f, -1.0f))
+    {
+        Position = position;
+        Up = up;
+        Right = glm::normalize(glm::cross(Front, Up));
+        Yaw = yaw;
+        Pitch = pitch;
+
+        updateCameraVectors();
+    }
+
+    glm::mat4 GetViewMatrix()
+    {
+        return glm::lookAt(Position, Position + Front, WorldUp);
+    }
+
+    void SetLookAt(glm::vec3 pos, glm::vec3 target, glm::vec3 worldUp)
+    {
+        Position = pos;
+        Front    = glm::normalize(target - pos);
+        Right    = glm::normalize(glm::cross(Front, worldUp));
+        Up       = glm::cross(Right, Front);
+    }
+    
+    void ProcessKeyboard(Camera_Movement direction, float deltaTime)
+    {
+        float velocity = SPEED * deltaTime;
+        if (direction == FORWARD)
+            Position += Front * velocity;
+        if (direction == BACKWARD)
+            Position -= Front * velocity;
+        if (direction == LEFT)
+            Position -= Right * velocity;
+        if (direction == RIGHT)
+            Position += Right * velocity;
+        if (direction == UP)
+            Position += Up * velocity;
+        if (direction == DOWN)
+            Position -= Up * velocity;
+    }
+
+    void ProcessMouse(GLFWwindow *window, float dirX1, float dirY1)
+    {
+        float offsetX, offsetY;
+
+        if (mouseInit)
+        {
+            dirX0 = dirX1;
+            dirY0 = dirY1;
+            mouseInit = false;
+        }
+
+        offsetX = dirX1 - dirX0;
+        offsetY = dirY0 - dirY1;
+
+        dirX0 = dirX1;
+        dirY0 = dirY1;
+
+        offsetX *= SENSITIVITY;
+        offsetY *= SENSITIVITY;
+
+        Yaw += offsetX;
+        Pitch += offsetY;
+
+        if (Pitch > 89.0f)
+            Pitch = 89.0f;
+        if (Pitch < -89.0f)
+            Pitch = -89.0f;
+
+        updateCameraVectors();
+    }
+
+    void SetFirstPerson(glm::vec3 carPos, glm::vec3 carTangent, glm::vec3 carUp, glm::vec3 carRight)
+        {
+            const float eyeHeight  =  0.90f; //nie mee fucken pls het was echt een pain om dit goed te krijgen
+            const float eyeForward =  -0.10f;
+
+            Position = carPos
+                    + carUp      * eyeHeight
+                    + carTangent * eyeForward;
+
+            Front = glm::normalize(carTangent);
+            Right = glm::normalize(carRight);
+            Up    = glm::normalize(carUp);
+        }
+
+    void SetFirstPersonShake(glm::vec3 carPos, glm::vec3 carTangent, glm::vec3 carUp,
+                            glm::vec3 carRight, float time, float speed)
+    {
+        const float eyeHeight  =  0.90f;
+        const float eyeForward = -0.10f;
+
+        float speedFactor = glm::clamp(speed / 5.0f, 0.0f, 1.0f);
+
+        // meerdere sinus functies om geen duidelijk patroon te krijgen in de saheke
+        float bump =
+            sin(time * 28.0f) * 0.0030f + 
+            sin(time * 13.0f) * 0.0020f +
+            sin(time *  7.0f) * 0.0015f;
+
+        float wobble =
+            sin(time * 19.0f + 1.3f) * 0.0015f +
+            sin(time *  9.0f + 0.7f) * 0.0010f;
+
+        float pitch =
+            sin(time * 28.0f)        * 0.50f +
+            sin(time * 11.0f + 0.5f) * 0.30f;
+
+        float roll =
+            sin(time * 17.0f + 1.3f) * 0.25f +
+            sin(time *  8.0f + 2.1f) * 0.20f;
+
+        bump    *= speedFactor;
+        wobble  *= speedFactor;
+        pitch   *= speedFactor;
+        roll    *= speedFactor;
+
+        Position = carPos
+                + carUp      * (eyeHeight + bump)
+                + carTangent * eyeForward
+                + carRight   * wobble;
+
+        glm::vec3 shakeUp = glm::normalize(carUp    + carTangent * glm::radians(pitch)
+                                                    + carRight   * glm::radians(roll));
+        Front = glm::normalize(carTangent);
+        Right = glm::normalize(carRight);
+        Up    = shakeUp;
+    }
+
+private:
+    void updateCameraVectors()
+    {
+        glm::vec3 front;
+        front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+        front.y = sin(glm::radians(Pitch));
+        front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+        Front = glm::normalize(front);
+        Right = glm::normalize(glm::cross(Front, WorldUp)); 
+    }
+};
+
+inline void updateCamera(Camera& camera, CamMode camMode,
+                         glm::vec3 carPos, glm::vec3 carAfgeleide,
+                         glm::vec3 realUp, glm::vec3 right,
+                         float currentFrame, float carSpeed)
+{
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    if (camMode == CAM_FOLLOW)
+    {
+        glm::vec3 camPos    = carPos - carAfgeleide * CAM_DISTANCE
+                                     + glm::vec3(0.0f, CAM_HEIGHT, 0.0f);
+        glm::vec3 camTarget = carPos + carAfgeleide * CAM_DISTANCE;
+        camera.SetLookAt(camPos, camTarget, up);
+    }
+    else if (camMode == CAM_CINEMATIC)
+    {
+        glm::vec3 camPos    = carPos - carAfgeleide * CAM_DISTANCE + 70.0f
+                                     + glm::vec3(3.0f, CAM_HEIGHT, 0.0f);
+        glm::vec3 camTarget = carPos + carAfgeleide * CAM_DISTANCE;
+        camera.SetLookAt(camPos, camTarget, up);
+    }
+    else if (camMode == CAM_FIRST_PERSON)
+    {
+        camera.SetFirstPersonShake(carPos, carAfgeleide, realUp, right, currentFrame, carSpeed);
+    }
+}
+
+#endif

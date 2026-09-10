@@ -1,0 +1,185 @@
+#pragma once
+#include <iostream>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <../src/camera.h>
+#include "cammode.h"
+
+// -----------------------------------------------------------------------
+//  GLOBALS
+// -----------------------------------------------------------------------
+extern char speedIncrease;
+extern float   deltaTime;
+
+extern Camera  camera;
+extern CamMode camMode;
+
+extern bool filterBlur;
+extern bool filterSharpen;
+extern bool filterScanline;
+
+extern bool hideHud;
+extern bool pitstop;
+extern bool hideBC;
+extern bool chromaKeyActive;
+extern bool legacyDriving;
+
+extern glm::vec3 tireStackPos;
+
+bool clickIn = false;
+
+// -----------------------------------------------------------------------
+//  CALLBACKS
+// -----------------------------------------------------------------------
+inline void framebuffer_size_callback(GLFWwindow *window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
+
+inline void mouse_callback(GLFWwindow* window, double posX, double posY)
+{
+    if (glfwWindowShouldClose(window)) return;
+    camera.ProcessMouse(window,
+        static_cast<float>(posX),
+        static_cast<float>(posY));
+}
+
+// Picking logic for pitstop
+inline void mouse_click_callback(GLFWwindow *window, int par1, int par2, int par3)
+{
+    if (!clickIn)
+    {
+        clickIn = true;
+        if (glfwWindowShouldClose(window))
+            return;
+        glm::vec3 position = camera.Position;
+        glm::vec3 front = camera.Front;
+
+        glm::vec3 stackPos = tireStackPos + glm::vec3(0.0f, 1.0f, 0.0f);
+
+        glm::vec3 lookVector = (position - front) - position;
+        glm::vec3 stackDirection = position - tireStackPos;
+
+        lookVector = glm::normalize(lookVector);
+        stackDirection = glm::normalize(stackDirection);
+
+        //std::cout << "X " << abs(stackDirection.x) - abs(lookVector.x) << "  |  Y " << abs(stackDirection.y) - abs(lookVector.y) << "   |  Z " << abs(stackDirection.z) - abs(lookVector.z) << "\n";
+
+        // toggle pitstop
+        if (abs(stackDirection.x) - abs(lookVector.x) < 0.1f && abs(stackDirection.x) - abs(lookVector.x) > -0.1f 
+        && abs(stackDirection.y) - abs(lookVector.y) < 0.1f && abs(stackDirection.y) - abs(lookVector.y) > -0.1f 
+        && abs(stackDirection.z) - abs(lookVector.z) < 0.1f && abs(stackDirection.z) - abs(lookVector.z) > -0.1f)
+        {
+            pitstop = !pitstop;
+        }
+
+        std::cout << "pitstop: " << pitstop << "\n";
+    }
+    else
+    {
+        clickIn = false;
+    }
+}
+
+// -----------------------------------------------------------------------
+//  KEYBOARD INPUT
+// -----------------------------------------------------------------------
+inline void processInput(GLFWwindow* window)
+{
+    speedIncrease = 'n';
+    static bool tabWasPressed = false;
+
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+
+    // cycle door de cam modes met TAB
+    bool tabNow = (glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS);
+    if (tabNow && !tabWasPressed)
+        camMode = static_cast<CamMode>((camMode + 1) % 4);
+    tabWasPressed = tabNow;
+
+    static bool fWas = false, gWas = false, hWas = false, jWas = false;
+
+    bool fNow = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
+    bool gNow = glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS;
+    bool jNow = glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS;
+
+    if (fNow && !fWas) filterSharpen  = !filterSharpen;
+    if (gNow && !gWas) filterBlur     = !filterBlur;
+    if (jNow && !jWas) filterScanline = !filterScanline;
+
+    fWas = fNow; gWas = gNow; jWas = jNow;
+
+    // hud hiding
+    static bool hideHudWas = false;
+    bool toggleHudNow = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
+
+    if (toggleHudNow && !hideHudWas)
+        hideHud = !hideHud;
+
+    hideHudWas = toggleHudNow;
+
+    // bezier curve hiding
+    static bool hideBCWas = false;
+    bool toggleBCNow = glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS;
+
+    if (toggleBCNow && !hideBCWas)
+        hideBC = !hideBC;
+
+    hideBCWas = toggleBCNow;
+
+    // chroma keying hiding
+    static bool hideKCWas = false;
+    bool toggleKCNow = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
+
+    if (toggleKCNow && !hideKCWas)
+        chromaKeyActive = !chromaKeyActive;
+
+    hideKCWas = toggleKCNow;
+
+    // legacyDriving toggle
+    static bool LDWas = false;
+    bool toggleLDNow = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS;
+
+    if (toggleLDNow && !LDWas)
+        legacyDriving = !legacyDriving;
+
+    LDWas = toggleLDNow;
+
+    // Free-cam movement
+    if (camMode == CAM_FREE)
+    {
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS)
+            camera.ProcessKeyboard(FORWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            camera.ProcessKeyboard(BACKWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+            camera.ProcessKeyboard(LEFT,     deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            camera.ProcessKeyboard(RIGHT,    deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            camera.ProcessKeyboard(UP,       deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+            camera.ProcessKeyboard(DOWN,     deltaTime);
+    }
+    else
+    {
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+            speedIncrease = 's'; // snel
+        }
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+            speedIncrease = 't'; // traag
+        }
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+        {
+            speedIncrease = 'r'; // rem
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+        {
+            speedIncrease = 'a'; // achteruit
+        }
+    }
+}
