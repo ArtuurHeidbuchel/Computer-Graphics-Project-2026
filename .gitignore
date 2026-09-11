@@ -1,0 +1,19 @@
+#basic gitignore
+build/
+out/
+
+.vscode/
+
+.idea/
+*.swp
+*.swo
+
+.DS_Store
+Thumbs.db
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+_deps/
