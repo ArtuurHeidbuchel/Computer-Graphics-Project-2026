@@ -45,7 +45,7 @@ CamMode camMode = CAM_FOLLOW;
 
 float  deltaTime = 0.0f;
 float  lastFrame = 0.0f;
-char speedIncrease = 'n'; // nothing
+char speedIncrease = 'n';
 
 glm::vec3 tireStackPos;
 
