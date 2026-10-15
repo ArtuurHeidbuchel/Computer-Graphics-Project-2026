@@ -22,7 +22,7 @@
 
 using namespace std;
 
-unsigned int TextureFromFile(const char *path, const string &directory, bool gamma = false);
+unsigned int TextureFromFile(const char *path, const string &directory, bool srgb = false);
 
 class Model 
 {
@@ -33,7 +33,7 @@ public:
     string directory;
     bool gammaCorrection;
 
-    Model(string const &path, bool gamma = false) : gammaCorrection(gamma)
+    Model(string const &path, bool srgb = false) : gammaCorrection(srgb)
     {
         loadModel(path);
     }
@@ -244,7 +244,7 @@ private:
             if(!skip)
             {   
                 Texture texture;
-                texture.id = TextureFromFile(str.C_Str(), this->directory);
+                texture.id = TextureFromFile(str.C_Str(), this->directory, typeName == "texture_diffuse");
                 texture.type = typeName;
                 texture.path = str.C_Str();
                 textures.push_back(texture);
@@ -256,7 +256,7 @@ private:
 };
 
 
-unsigned int TextureFromFile(const char *path, const string &directory, bool gamma)
+unsigned int TextureFromFile(const char *path, const string &directory, bool srgb)
 {
     string filename = string(path);
     filename = directory + '/' + filename;
@@ -268,16 +268,16 @@ unsigned int TextureFromFile(const char *path, const string &directory, bool gam
     unsigned char *data = stbi_load(filename.c_str(), &width, &height, &nrComponents, 0);
     if (data)
     {
-        GLenum format;
-        if (nrComponents == 1)
-            format = GL_RED;
-        else if (nrComponents == 3)
-            format = GL_RGB;
-        else if (nrComponents == 4)
-            format = GL_RGBA;
+        GLenum format = GL_RGB, internalFormat = GL_RGB;
+        if (nrComponents == 1)      { format = internalFormat = GL_RED; }
+        else if (nrComponents == 3) { format = GL_RGB;  internalFormat = srgb ? GL_SRGB       : GL_RGB;  }
+        else if (nrComponents == 4) { format = GL_RGBA; internalFormat = srgb ? GL_SRGB_ALPHA : GL_RGBA; }
 
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

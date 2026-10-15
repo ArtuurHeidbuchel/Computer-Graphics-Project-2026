@@ -12,6 +12,14 @@ uniform int filterScanline;
 uniform int       bloomEnabled;
 uniform sampler2D bloomTexture;
 
+uniform float exposure      = 0.7;
+uniform float bloomStrength = 0.5;
+
+vec3 aces(vec3 x)
+{
+    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+}
+
 vec3 convolve(mat3 kernel)
 {
     vec2 texOffset = 1.0 / resolution;
@@ -74,7 +82,7 @@ void main()
     if (bloomEnabled == 1)
     {
         vec3 bloom = texture(bloomTexture, TexCoords).rgb;
-        color += bloom;
+        color += bloom * bloomStrength;
     }
 
     if (filterScanline == 1)
@@ -83,7 +91,8 @@ void main()
         color *= scanline;
     }
 
-    // tonemapping last
-    color = color / (color + vec3(1.0));
+    color *= exposure;
+    color = aces(color);
+    color = pow(color, vec3(1.0 / 2.2));   // gamma
     FragColor = vec4(color, 1.0);
 }
